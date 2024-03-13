@@ -3,12 +3,13 @@ import sys
 import random
 import numpy as np
 
-n = 200
+N = 200
 robot_num = 10
 berth_num = 10
 boat_num = 5
 
 LAND, SEA, OBS, ROB, BERT = 0, 1, 2, 3, 4
+GOOD = 5
 mark = {
     '.': LAND,
     '*': SEA,
@@ -50,17 +51,16 @@ money = 0
 boat_capacity = 0
 id = 0
 ch = []
-mymap = np.zeros((n, n))
-goods = np.zeros((n, n))
+mymap = np.zeros((N, N))
+goods = np.zeros((N, N))
 
 def Init():
     global boat_capacity
-    for i in range(n):  # 获取200x200地图
+    for i in range(N):  # 获取200x200地图
         line = input()
         chars = line.split()
-        for j in range(n):
+        for j in range(N):
             mymap[i, j] = mark[chars[j]]
-        # ch.append(chars)
     for i in range(berth_num):  # 获取泊位数据
         line = input()
         berth_list = [int(c) for c in line.split()]
@@ -96,42 +96,60 @@ def get_nearest_robot_id_from_good(gd_x, gd_y, exp=[]):
             d2.append([i, (r.x - gd_x)**2 + (r.y - gd_y)**2])
     return min(d2, key=lambda x: x[1])[0]
 
-def get_all_good_pos_from_robot(rob, x_range=20, y_range=20):
-    # 获取机器人一定范围内所有货物坐标
-    x_min = rob.x - int(x_range / 2)
-    x_max = rob.x + int(x_range / 2)
-    y_min = rob.y - int(y_range / 2)
-    y_max = rob.y + int(y_range / 2)
-    x_min = x_min if x_min >= 0 else 0
-    x_max = x_max if x_max < n else n
-    y_min = y_min if y_min >= 0 else 0
-    y_max = y_max if y_max < n else n
-    gd_pos = []
-    for x in range(x_min, x_max + 1):
-        for y in range(y_min, y_max + 1):
-            if mymap[x, y] == LAND and goods[x, y] > 0:
-                gd_pos.append((x, y))
-    return gd_pos
-
 def get_nearest_berth_id(cur_x, cur_y):
     # 获取距离当前位置最近的港口
     dist = [(cur_x - b.x)**2 + (cur_y - b.y)**2 for b in berth]
     return np.argmin(dist)
 
+def get_all_good_pos_list(gds):
+    pos_list = []
+    for i in range(N):
+        for j in range(N):
+            if gds[i, j] != 0:
+                pos_list.append((i, j))
+
+def put_goods_into_map(gds, mp):
+    gds[mp != 0] = GOOD
+
+def rm_goods_from_map(mp, gd_pos):
+    mp[gd_pos[1], gd_pos[0]] = LAND
+
+directions = {  # 机器人移动方向
+    '2': (0, -1), 
+    '1': (-1, 0), 
+    '3': (0, 1),
+    '0': (1, 0)
+}
 
 if __name__ == "__main__":
     Init()
-    for frame in range(1, 15001):
+    start = (robot[0].x, robot[0].y)
+    while 1:
         id = Input()
-
-        """
-        这部分进行每一帧的信息处理然后给出机器人和船的运动决策
-        """
-        gd_pos = get_all_good_pos_from_robot(robot[0])
+        put_goods_into_map(goods, mymap)
+        visited = []
+        order = None  # 机器人的指令
+        end = get_all_good_pos_list(goods)
+        routes = [LAND, GOOD]
+        stack = [(start, iter(directions.items()))]
+        while stack:
+            current, directions_iter = stack[-1]
+            direction, (dx, dy) = next(directions_iter)
+            x, y = current[0] + dx, current[1] + dy
+            
+            if (x, y) in end:  # 到达货物位置
+                order = direction
+                visited = []
+                break
+            
+            if 0 <= x < N and 0 <= y < N and \
+                    mymap[y, x] in routes and (x, y) not in visited:
+                stack.append(((x, y), iter(directions.items())))
+                visited.append((x, y))
+                order = direction
         
-        
 
 
         
-        print("OK")
-        sys.stdout.flush()
+    print("OK")
+    sys.stdout.flush()
