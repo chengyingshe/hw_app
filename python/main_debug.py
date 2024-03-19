@@ -55,7 +55,6 @@ mymap = np.zeros((N, N))
 goods = np.zeros((N, N))
 berth_pos_list = []
 good_pos_list = []
-available_boat = busy_boat = []
 
 LAND, SEA, OBS, ROB, BERT, GOOD = 0, 1, 2, 3, 4, 5
 mark = {  # 地图中的字符含义
@@ -78,13 +77,6 @@ directions = {  # 机器人移动方向
     '0': (1, 0)
 }
 
-def get_berth_pos_list_by_left_top(x, y):
-    pos_l = []
-    for i in range(x, x + 4):
-        for j in range(y, y + 4):
-            pos_l.append((i, j))
-    return pos_l
-
 def Init():
     global boat_capacity
     for i in range(N):  # 获取200x200地图
@@ -92,6 +84,13 @@ def Init():
         chars = line.split()
         for j in range(N):
             mymap[i, j] = mark[chars[j]]
+
+    def get_berth_pos_list_by_left_top(x, y):
+        pos_l = []
+        for i in range(x, x + 4):
+            for j in range(y, y + 4):
+                pos_l.append((i, j))
+        return pos_l
 
     for i in range(berth_num):  # 获取泊位数据
         line = input()
@@ -209,6 +208,7 @@ def Input_test(f):  #@test
     generate_new_map(mymap)
     return id
 
+
 def find_way(maze, start,
                 end: list,  # 终点坐标集合
                 routes: list = [0],  # 机器人可以走的格子
@@ -249,7 +249,7 @@ def find_way(maze, start,
 
 def decode_and_append_order(orders: str, 
                             n_order: str,
-                            logging=False):
+                            logging=True):
     """
     向指令字符串中解析新的指令并添加其中
     `n_order`: r0 move[0-3]/'', r0 get, r0 pull, s0 g(0)
@@ -262,7 +262,7 @@ def decode_and_append_order(orders: str,
             if logging: print('捡到货物！！！' if l[1] == 'get' else '放下货物！！！')
             return orders + f'{l[1]} {id}\n'
         elif re.match(r'move[0-3]*', l[1]):
-            move_robot(0, l[1][4])
+            if logging: move_robot(0, l[1][4])
             if len(l[1]) == 4: return orders
             return orders + f'move {id} {l[1][4]}\n'
     elif n_order[0] == 's':
@@ -272,30 +272,9 @@ def decode_and_append_order(orders: str,
             return orders + f'ship {id} {int(l[1][1])}\n'
     raise ValueError('Wrong order!')
 
-def get_berth_id_from_pos(pos):
-    # 获取当前位置对应的港口id
-    for i in range(berth_num):
-        b = berth[i]
-        if b.x <= pos[0] < b.x + 4 and b.y <= pos[1] < b.y + 4:
-            return i
-
-def get_berth_pos_list_from_ids(ids: list):
-    if len(ids) == 0: return []
-    pos_l = []
-    for i in ids:
-        pos_l.append(get_berth_pos_list_by_left_top(berth[i].x, berth[i].y))
-    return pos_l
-
-def call_boat_by_id(berth_id):
-    """
-    
-    order: g[0-9]{0,1}
-    """
-    order = ''
-    
-
 if __name__ == "__main__":
-    Init()
+    # Init()
+    f = Init_test()
 
     rob_id = 0
     start = (robot[rob_id].x, robot[rob_id].y)
@@ -309,11 +288,14 @@ if __name__ == "__main__":
     output = None
     end = good_pos_list
 
-    loaded_good_num = 0
-
     while 1:
-        id = Input()
+
+        id = Input_test(f)
+        print(f'Frame #{id}:')
+        print(f'good num: {len(good_pos_list)}')
+        # id = Input()
         output = ''
+
         ending, args = find_way(mymap, start, end, routes, visited, orders)
         if ending == RobState.BORN_REACHED:
             output = decode_and_append_order(output, f'r{rob_id} get')
@@ -334,7 +316,6 @@ if __name__ == "__main__":
                 routes = [LAND, GOOD]
                 visited = []
                 orders = []
-
             else:
                 ord = f'r{rob_id} pull'
                 target = GOOD
@@ -343,14 +324,16 @@ if __name__ == "__main__":
                 routes = [LAND]
                 visited = []
                 orders = []
-                berth_id = get_berth_id_from_pos(start)
-                output = decode_and_append_order(output, f's0 g{berth_id}')
-
             output = decode_and_append_order(output, ord)
         else:  # unreached
             output = decode_and_append_order(output, f'r{rob_id} move{args[0]}')
         
+        print('################################')
+        print('output: ')
         print(output, flush=True)  # 输出当前帧的指令
+        print('################################')
+        time.sleep(0.05)
+        
         print("OK", flush=True)
 
     print("OK", flush=True)
