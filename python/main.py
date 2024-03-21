@@ -77,6 +77,9 @@ directions = {  # 机器人移动方向
     '3': (0, 1),
     '0': (1, 0)
 }
+reverse_directions = {}
+for k, v in directions.items():
+    reverse_directions[v] = k
 
 def get_berth_pos_list_by_left_top(x, y):
     pos_l = []
@@ -286,18 +289,13 @@ def get_berth_pos_list_from_ids(ids: list):
         pos_l.append(get_berth_pos_list_by_left_top(berth[i].x, berth[i].y))
     return pos_l
 
-def call_boat_by_id(berth_id):
-    """
     
-    order: g[0-9]{0,1}
-    """
-    order = ''
-    
-
 if __name__ == "__main__":
     Init()
 
     rob_id = 0
+    target_berth = None
+    boat_is_barked = False
     start = (robot[rob_id].x, robot[rob_id].y)
     ending = None
     args = None
@@ -309,9 +307,7 @@ if __name__ == "__main__":
     output = None
     end = good_pos_list
 
-    loaded_good_num = 0
-
-    while 1:
+    for frame in range(1, 15001):
         id = Input()
         output = ''
         ending, args = find_way(mymap, start, end, routes, visited, orders)
@@ -343,8 +339,10 @@ if __name__ == "__main__":
                 routes = [LAND]
                 visited = []
                 orders = []
-                berth_id = get_berth_id_from_pos(start)
-                output = decode_and_append_order(output, f's0 g{berth_id}')
+                if target_berth is None: target_berth = get_berth_id_from_pos(start)
+                if not boat_is_barked:
+                    output = decode_and_append_order(output, f's0 g{target_berth}')
+                    boat_is_barked = True
 
             output = decode_and_append_order(output, ord)
         else:  # unreached

@@ -190,6 +190,28 @@ def generate_new_map(mymap, map_file='map_with_goods.txt'):  #@test
             # 写入每个字符串并添加换行符
             file.write(string + "\n")
 
+def refresh_map_by_order(mymap, 
+                         order: str,  # move
+                         map_file='map_with_goods.txt'):  #@test
+    if order[:4] == 'move':
+        rob_id = int(order[5])
+        mymap[robot[rob_id].x, robot[rob_id].y] = LAND
+        dx, dy = directions[order[7]]
+        robot[rob_id].x += dx
+        robot[rob_id].y += dy
+        mymap[robot[rob_id].x, robot[rob_id].y] = ROB
+        map_str = []
+        for i in range(N):
+            line = ''
+            for j in range(N):
+                line += reverse_mark[mymap[i, j]]
+            map_str.append(line)
+        with open(map_file, "w") as file:
+            # 遍历字符串数组
+            for string in map_str:
+                # 写入每个字符串并添加换行符
+                file.write(string + "\n")
+
 def Input_test(f):  #@test
     id = int(read_line(f))  # frame id
     num = int(read_line(f))  # 新增货物的数量
@@ -302,6 +324,7 @@ if __name__ == "__main__":
             target = BERT
             end = berth_pos_list
             start = (robot[rob_id].x, robot[rob_id].y)
+            mymap[start[1], start[0]] = LAND
             routes = [LAND]
             visited = []
             orders = []
@@ -313,6 +336,7 @@ if __name__ == "__main__":
                 target = BERT
                 end = berth_pos_list
                 start = (robot[rob_id].x, robot[rob_id].y)
+                mymap[start[1], start[0]] = LAND
                 routes = [LAND, GOOD]
                 visited = []
                 orders = []
