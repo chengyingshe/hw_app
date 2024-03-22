@@ -135,18 +135,17 @@ def simulate(mymap, robots, goods_positions):
                 robot_trajectories[robot].extend(ship_path[1:])  # 添加船舶路径到轨迹，排除起点重复
 
     # 打印每个货物对应的机器人轨迹
-    # for robot, trajectory in robot_trajectories.items():
-    #     if trajectory:  # 确保轨迹非空
-    #         goods_pos_str = f" to goods at {assignments[robot]['good']}" if robot in assignments and 'good' in assignments[robot] else ""
-    #         print(f"Robot starting from {robot}{goods_pos_str} trajectory:")
-    #         trajectory_str = " -> ".join(map(str, [robot] + trajectory))  # 包含起始点
-    #         print(trajectory_str)
-    #         if 'ship' in assignments[robot]:
-    #             print(f" and then to ship at {assignments[robot]['ship']}")
-    #         print('Finished\n')
+    for robot, trajectory in robot_trajectories.items():
+        if trajectory:  # 确保轨迹非空
+            goods_pos_str = f" to goods at {assignments[robot]['good']}" if robot in assignments and 'good' in assignments[robot] else ""
+            print(f"Robot starting from {robot}{goods_pos_str} trajectory:")
+            trajectory_str = " -> ".join(map(str, [robot] + trajectory))  # 包含起始点
+            print(trajectory_str)
+            if 'ship' in assignments[robot]:
+                print(f" and then to ship at {assignments[robot]['ship']}")
+            print('Finished\n')
 
-# n_goods = random.randint(1, 10)  # 随机选择1到10个货物
-n_goods = 1  # 随机选择1到10个货物
+n_goods = random.randint(1, 10)  # 随机选择1到10个货物
 
 goods_positions = init_goods(mymap, n_goods)
 start = time.time()

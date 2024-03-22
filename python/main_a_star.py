@@ -6,13 +6,13 @@ import numpy as np
 from enum import Enum
 import re
 import time
-import logging
+# import logging
 import os
 
 # 配置日志记录器
 debug_file = 'D:\\大学\\0 大学竞赛\\华为云精英挑战赛\\SDK\\WindowsRelease\\sdk\\robots.log'
 if os.path.exists(debug_file): os.remove(debug_file)
-logging.basicConfig(filename=debug_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.basicConfig(filename=debug_file, level=# logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 N = 200
 robot_num = 10
@@ -23,14 +23,14 @@ class Robot:
     def __init__(self, startX=0, startY=0, goods=0, status=0, mbx=0, mby=0):
         self.x = startX
         self.y = startY
-        self.goods = goods
+        self.carring_good = goods
         self.status = status
         self.mbx = mbx
         self.mby = mby
         self.target_good_val = 0
-
-    def __str__(self) -> str:
-        return f'({self.x}, {self.y}, {self.goods})'
+        self.target_berth_id = None
+        self.target_berth_pos = None
+    
 robot = [Robot() for _ in range(robot_num)]
 
 class Berth:
@@ -86,20 +86,32 @@ reverse_directions = {}
 for k, v in directions.items():
     reverse_directions[v] = k
 
-def get_berth_pos_list_by_left_top(x, y):
-    pos_l = []
-    for i in range(x, x + 4):
-        for j in range(y, y + 4):
-            pos_l.append((i, j))
-    return pos_l
+def set_all_robots_target_berth_pos():  # 根据time, velocity, distance等因素为每个robot找到一个berth_pos (Init)
+    def get_available_berth_pos_by_id(berth_id):  # 遍历港口4个角点，找到位于陆地上的两个点
+        points = [(berth[berth_id].x, berth[berth_id].y), (berth[berth_id].x + 3, berth[berth_id].y), (berth[berth_id].x + 3, berth[berth_id].y + 3), (berth[berth_id].x, berth[berth_id].y + 3)]
+        available_pos = []
+        for p in points:
+            if sum([mymap[(p[1] + d[1], p[0] + d[0])] == LAND for d in directions.values()]) >= 1:
+                available_pos.append(p)
+        return available_pos[:2]
 
-def get_the_best_berth_id():  # 根据time, velocity, distance等因素找到最合适的一个港口
-    return 0
+    available_berth_pos_list = []
+    for i in range(5):  # 只取前5个港口（10个点）
+        available_berth_pos_list.extend(get_available_berth_pos_by_id(i))
+    # # logging.info(f'available_berth_pos_list: {available_berth_pos_list}')
+    rob_index = list(range(robot_num))
+    for b_pos in available_berth_pos_list:
+        dist_l = []
+        for i in rob_index:
+            rob = robot[i]
+            dist_l.append([heuristic(b_pos, (rob.x, rob.y)), i])
+        min_rob_i = dist_l[np.argmin(dist_l, axis=0)[0]][1]
+        robot[min_rob_i].target_berth_pos = b_pos
+        robot[min_rob_i].target_berth_id = get_berth_id_from_pos(b_pos)
+        rob_index.remove(min_rob_i)
 
-target_berth = None
-target_berth_pos = None
 def Init():
-    global boat_capacity, target_berth, target_berth_pos
+    global boat_capacity
     for i in range(N):  # 获取200x200地图
         line = input()
         ch.append(line.strip())
@@ -117,8 +129,9 @@ def Init():
     for i in range(N):
         for j in range(N):
             mymap[i, j] = mark[ch[i][j]]
-    target_berth = get_the_best_berth_id()
-    target_berth_pos = (berth[target_berth].x + 3, berth[target_berth].y + 3)
+    sorted(berth, key=lambda b: b.transport_time)  # 排序
+
+    set_all_robots_target_berth_pos()
     print("OK")
     sys.stdout.flush()
 
@@ -130,18 +143,18 @@ def Input():
         # goods[x][y] = val
         good_list.append((x, y, val))
     for i in range(robot_num):  # 10行机器人的信息
-        robot[i].goods, robot[i].y, robot[i].x, robot[i].status = map(int, input().split(' '))
+        robot[i].carring_good, robot[i].y, robot[i].x, robot[i].status = map(int, input().split(' '))
     # logging_robot_info()
     for i in range(5):  # 5行船的信息
         boat[i].status, boat[i].target_berth_id = map(int, input().split())
     okk = input()  # 'OK'
     return id
 
-def logging_robot_info():  #@debug
-    robots_pos = []
+def logging_robot_target_berth_pos_list():  #@debug
+    robot_target_berth_pos_list = []
     for i in range(robot_num):
-        robots_pos.append((robot[i].x, robot[i].y))
-    logging.info(f'robots(x, y): {robots_pos}')
+        robot_target_berth_pos_list.append(robot[i].target_berth_pos)
+    # logging.info(f'robot_target_berth_pos_list: {robot_target_berth_pos_list}')
 
 def read_line(f) -> str:  #@test
     return f.readline().strip()
@@ -153,7 +166,7 @@ def print_robot():  #@test
     print()
 
 def Init_test():  #@test
-    global boat_capacity, target_berth, target_berth_pos
+    global boat_capacity
     f_path = 'D:\\大学\\0 大学竞赛\\华为云精英挑战赛\\SDK\\WindowsRelease\\sdk\\debug.txt'
     f = open(f_path, 'r')
     rob_i = 0
@@ -188,8 +201,7 @@ def Init_test():  #@test
     print(f'泊位初始化完成...')
     boat_capacity = int(f.readline().strip())  # 获取船的容积
     print(f'船初始化完成，容量：{boat_capacity}')
-    target_berth = get_the_best_berth_id()
-    target_berth_pos = (berth[target_berth].x + 3, berth[target_berth].y + 3)
+    set_all_robots_target_berth_pos()
     print("初始化完成...")
     return f
 
@@ -238,32 +250,11 @@ def refresh_map_by_order(mymap,  #@test
             # 写入每个字符串并添加换行符
             file.write(string + "\n")
 
-def heuristic(a, b):
+def heuristic(a, b) -> int:
   """
   启发式函数 - 曼哈顿距离
   """
   return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
-def decode_order(n_order: str):
-    """
-    向指令字符串中解析新的指令并添加其中
-    `n_order`: r0 move[0-3]|'', r0 get, r0 pull, s0 g(0)
-    """
-    assert re.match(r'[rs]\d\s\w+', n_order), 'Wrong order!'
-    l = n_order.split(' ')
-    id = int(n_order[1])
-    if n_order[0] == 'r':
-        if l[1] in ['get', 'pull']:
-            return f'{l[1]} {id}\n'
-        elif re.match(r'move[0-3]*', l[1]):
-            if len(l[1]) == 4: return ''
-            return f'move {id} {l[1][4]}\n'
-    elif n_order[0] == 's':
-        if l[1] == 'g':
-            return f'go {id}\n'  # 船去虚拟点
-        elif re.match(r'g\d', l[1]):
-            return f'ship {id} {int(l[1][1])}\n'
-    raise ValueError('Wrong order!')
 
 def reconstruct_path(came_from, current):  # 路径重建
     total_path = [current]
@@ -279,7 +270,7 @@ def get_orders_from_path(path, rob_id):
         orders.append(f'move {rob_id} {direct}')
     return orders
 
-def a_star(start, goal, map, routes: list = [LAND, GOOD, BERTH]):  # A* 算法实现
+def a_star(start, goal, map, routes: list = [LAND, GOOD, BERTH], blocks: list = []):  # a*算法
     width, height = map.shape[1], map.shape[0]
     open_set = []
     heapq.heappush(open_set, (0 + heuristic(start, goal), 0, start))
@@ -293,7 +284,8 @@ def a_star(start, goal, map, routes: list = [LAND, GOOD, BERTH]):  # A* 算法�
             return reconstruct_path(came_from, current)
         for dir in directions.values():
             neighbor = tuple(np.array(current) + dir)
-            if 0 <= neighbor[0] < width and 0 <= neighbor[1] < height and map[neighbor[1], neighbor[0]] in routes:
+            if 0 <= neighbor[0] < width and 0 <= neighbor[1] < height and \
+                    map[neighbor[1], neighbor[0]] in routes and neighbor not in blocks:
                 tentative_g_score = g_score[current] + 1
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current
@@ -303,76 +295,111 @@ def a_star(start, goal, map, routes: list = [LAND, GOOD, BERTH]):  # A* 算法�
                         heapq.heappush(open_set, (f_score[neighbor], tentative_g_score, neighbor))
     return []
 
-def get_berth_id_from_pos(pos):
-    # 获取当前位置对应的港口id
+def get_robot_path_without_overlap(rob_id, start, goal, routes: list = [LAND, GOOD, BERTH]):
+    anothers_robots_path_list = []
+    for i in range(robot_num):
+        if i == rob_id: continue
+        anothers_robots_path_list.extend(robots_path_list)
+    return a_star(start, goal, mymap, routes, anothers_robots_path_list)
+
+def get_berth_id_from_pos(pos) -> int:  # 获取当前位置对应的港口id
     for i in range(berth_num):
         b = berth[i]
         if b.x <= pos[0] < b.x + 4 and b.y <= pos[1] < b.y + 4:
             return i
 
-def get_nearest_good_pos(good_list: list, cur_pos: tuple):  # 根据机器人的位置分配距离最近的货物
-    gd = good_list.pop()
+def get_best_good_pos(good_list: list, cur_pos: tuple):  # 根据货物位置和价值分配（**权重可优化）
+    dist_mul_val_l = []
+    for i in range(len(good_list)):
+        dist_mul_val_l.append(heuristic(cur_pos, (good_list[i][:2])) * good_list[i][2])
+    min_i = np.argmin(dist_mul_val_l)
+    gd = good_list[min_i]
+    good_list.remove(gd)
     return gd
 
-def get_nearest_berth_pos(cur_pos):  # 离机器人当前位置最近的港口
-    dist_heur = np.zeros(berth_num)
-    for i in range(berth_num):
-        dist_heur[i] = heuristic(cur_pos, (berth[i].x, berth[i].y))
-    min_bert_id = np.argmin(dist_heur)
-    return (berth[min_bert_id].x + 3, berth[min_bert_id].y + 3)
-
-def update_all_boats(gd_val_list) -> str:  # 更新每艘船的状态（港口自动装载货物，装满后需要去虚拟点，并且对到达虚拟点的船只召回到港口）
+idle_berth_list = []
+all_berth_pulled_good_val_list = [[]] * 5
+def update_all_boats() -> list:  # 更新每艘船的状态（港口自动装载货物，装满后需要去虚拟点，到达虚拟点的船只回到空闲港口）
+    def get_first_most_num_good_val_sum(num, good_val_list: list, remove=False):
+        sum = 0
+        num_good = len(good_val_list)
+        for i in range(num):
+            if i >= num_good:
+                break
+            sum += good_val_list[i]
+        if remove:
+            if i >= num_good:
+                good_val_list.clear()
+            else:
+                for _ in range(num): good_val_list.remove(good_val_list[0])
+        return sum
+    
+    orders_l = []
     for i in range(boat_num):
-        if boat[i].status == 1 and boat[i].target_berth_id == target_berth:  # 船在港口
+        cur_berth_id = boat[i].target_berth_id
+        if boat[i].status == 1 and cur_berth_id != VIR_POINT:  # 船在港口
+            good_val_list = all_berth_pulled_good_val_list[cur_berth_id]  # 当前船所在的港口上的货物
             while 1:
-                if not gd_val_list:  # 港口没有货物了
+                if not good_val_list:  # 港口没有货物了
                     break
-                if boat[i].loaded_val + gd_val_list[-1] > boat_capacity:  # 船装满了
-                    return f'go {i}'
-                gd_val = gd_val_list.pop()
+                v = berth[cur_berth_id].loading_speed  # 港口装载速度
+                if boat[i].loaded_val + get_first_most_num_good_val_sum(v, good_val_list) > boat_capacity:  # 船装满了
+                    idle_berth_list.append(cur_berth_id)  # 船离开后当前港口空闲
+                    orders_l.append(f'go {i}')
+                    break
+                # 港口还有货物，需要装载到船上
+                gd_val = get_first_most_num_good_val_sum(v, good_val_list, remove=True)
                 boat[i].loaded_val += gd_val
-                logging.info(f'boat #{i} load ${gd_val}')
+                # logging.info(f'boat #{i} load ${gd_val}')
 
-        elif boat[i].status == 1 and boat[i].target_berth_id == VIR_POINT:  # 船已经到达虚拟点
+        elif boat[i].status == 1 and cur_berth_id == VIR_POINT:  # 船已经到达虚拟点
             boat[i].loaded_val = 0
-            # boats_targets_list[i] = target_berth
-            return f'ship {i} {target_berth}'
-    return ''  # 5艘船都在去虚拟点的途中
+            idle_berth_id = idle_berth_list[0]
+            idle_berth_list.remove(idle_berth_id)
+            orders_l.append(f'ship {i} {idle_berth_id}')  # 船前往空闲港口
+    
+    return orders_l  # orders_l为空时5艘船都在去虚拟点的途中
 
-
+robots_path_list = [[]] * robot_num
 robots_orders_list = [[]] * robot_num
 num_robot_per_frame = 2  # 每一帧规划两个机器人的路径
-pulled_good_val_list = []
-
 if __name__ == "__main__":
     Init()
-    # f = Init_test()
-
-    for zhen in range(1, 15001):
+    
+    while 1:
         frame_id = Input()
-        # frame_id = Input_test(f)
-        # print(f'frame #{frame_id}')
-
-        logging.info(f'frame #{frame_id}')
+        # logging.info(f'frame #{frame_id}')
 
         for i in range(num_robot_per_frame):
             robot_id = (frame_id * num_robot_per_frame - (num_robot_per_frame - i)) % robot_num
-            start = (robot[robot_id].x, robot[robot_id].y)
-            if robot[robot_id].goods == 0:  # 机器人未携带货物
-                if good_list:  # 当生成的货物还有未分配的时
-                    gd = get_nearest_good_pos(good_list, start)
-                    goal = (gd[0], gd[1])
-                    robot[robot_id].target_good_val = gd[2]
-            else:
-                goal = target_berth_pos
-            path = a_star(start, goal, mymap)
-            if not path:
-                continue  # 机器人走不通
-            orders_l = get_orders_from_path(path, robot_id)
-            if not robots_orders_list[robot_id] or \
-                    len(robots_orders_list[robot_id]) > len(orders_l):
-                robots_orders_list[robot_id] = orders_l
-                logging.info(f'robot #{robot_id} -> {goal}')
+
+            if robot[robot_id].status == 1 :  # 机器人处于正常运行状态时
+                if robot[robot_id].carring_good == 0 or \
+                        robot[robot_id].carring_good == 1 and not robots_orders_list[robot_id]:
+                    # 机器人未携带货物|机器人携带货物并且未对其进行路径规划
+                    start = (robot[robot_id].x, robot[robot_id].y)
+                    if robot[robot_id].carring_good == 0:  # 机器人未携带货物
+                        if good_list:  # 当生成的货物还有未分配的时
+                            gd = get_best_good_pos(good_list, start)
+                            goal = (gd[0], gd[1])
+                            robot[robot_id].target_good_val = gd[2]
+                    else:
+                        goal = robot[robot_id].target_berth_pos
+                    
+                    path = get_robot_path_without_overlap(robot_id, start, goal)
+                    robots_path_list[robot_id] = path
+                
+                    if not path: continue  # 机器人走不通
+                    orders_l = get_orders_from_path(path, robot_id)
+                    if not robots_orders_list[robot_id] or \
+                            len(robots_orders_list[robot_id]) > len(orders_l):  # 新路线更短了
+                        robots_orders_list[robot_id] = orders_l
+                        # logging.info(f'robot #{robot_id} -> {goal}')
+                    
+                    else:  # 机器人处于恢复状态（发生碰撞）
+                        path = []
+                        # logging.info(f'robot #{robot_id} crashed!')
+
 
         output = []
         for i in range(robot_num):
@@ -381,30 +408,27 @@ if __name__ == "__main__":
                 output.append(ord)
                 robots_orders_list[i].remove(ord)
                 if not robots_orders_list[i]:  # 只剩下一条指令（下一步到达货物或港口）
-                    if robot[i].goods == 0:  # 机器人未携带货物
+                    if robot[i].carring_good == 0:  # 机器人未携带货物
                         output.append(f'get {i}')
-                        logging.info(f'robot #{i} get good at ({robot[i].x}, {robot[i].y})')
+                        # logging.info(f'robot #{i} get good at ({robot[i].x}, {robot[i].y})')
+                        robot[i].carring_good = 1
 
                     else:  # 放货
                         output.append(f'pull {i}')
-                        pulled_good_val_list.append(robot[i].target_good_val)
+                        all_berth_pulled_good_val_list[robot[i].target_berth_id].append(robot[i].target_good_val)
                         robot[i].target_good_val = 0
-                        # robots_targets_list[i] = GOOD
-                        logging.info(f'robot #{i} pull good at ({robot[i].x}, {robot[i].y})')
+                        # logging.info(f'robot #{i} pull good at ({robot[i].x}, {robot[i].y})')
 
-        if frame_id == 1:  # 第一帧时让所有船前往target_berth
+        if frame_id == 1:  # 第一帧时让5艘船去前5个港口（已排序）
             for i in range(boat_num):
-                output.append(f'ship {i} {target_berth}')
+                output.append(f'ship {i} {i}')
         else:
-            order = update_all_boats(pulled_good_val_list)
-            if order != '':
-                output.append(order)
-                logging.info(f'ship order: {order}')
+            orders_l = update_all_boats()
+            output.extend(orders_l)
+            # logging.info(f'ship orders: {orders_l}')
 
         print('\n'.join(output))  # 输出当前帧的指令
         print("OK")
         sys.stdout.flush()
-                
-        # for order in output:
-        #     refresh_map_by_order(mymap, order)
-            
+        if frame_id >= 15000: break
+
